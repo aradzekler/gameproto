@@ -1,0 +1,267 @@
+[gd_scene load_steps=17 format=2]
+
+[ext_resource path="res://Sprites/Player/Idle0.png" type="Texture" id=1]
+[ext_resource path="res://Sprites/Player/Run0.png" type="Texture" id=2]
+[ext_resource path="res://Sprites/Player/Run1.png" type="Texture" id=3]
+[ext_resource path="res://Sprites/Player/Run2.png" type="Texture" id=4]
+[ext_resource path="res://Sprites/Player/Run3.png" type="Texture" id=5]
+[ext_resource path="res://Sprites/Player/Run4.png" type="Texture" id=6]
+[ext_resource path="res://Sprites/Player/Run7.png" type="Texture" id=7]
+[ext_resource path="res://Sprites/Player/Jump3.png" type="Texture" id=8]
+[ext_resource path="res://Sprites/Player/Jump1.png" type="Texture" id=9]
+[ext_resource path="res://Sprites/Player/Jump0.png" type="Texture" id=10]
+[ext_resource path="res://Sprites/Tiles/Sky.png" type="Texture" id=11]
+[ext_resource path="res://world2Entrance.tscn" type="PackedScene" id=12]
+[ext_resource path="res://dirtAutoTileSet.tres" type="TileSet" id=13]
+
+[sub_resource type="GDScript" id=3]
+
+script/source = "extends KinematicBody2D
+
+const UP = Vector2(0, -1)
+const GRAVITY = 21
+const MAX_SPEED = 200
+const ACCELERATION = 50
+const JUMP_HEIGHT = -550
+const MAX_JUMPS = 2
+const DASH_TIMER = 30
+const MAX_FALL_TIME = 200
+
+#states for input_states.gd 
+const INPUT_RELEASED = 0
+const INPUT_JUST_PRESSED = 1
+const INPUT_PRESSED = 2
+const INPUT_JUST_RELEASED = 3
+
+var input_states = preload(\"Scripts/input_states.gd\") #imports script.
+var motion = Vector2() # initializes with 0, holds player location.
+var jumpCount = 0
+var deathFallCounter = 0
+var dashTimerCounter = 0
+var myDelta = 0
+var moveLeft = input_states.new(\"ui_left\")
+var moveRight = input_states.new(\"ui_right\")
+var moveUp = input_states.new(\"ui_select\")
+var moveDown = input_states.new(\"ui_down\")
+
+##TODO: [] Add duck.
+##		[] Fix double jump speed
+func get_input():
+	var friction = false
+	var onFloor = is_on_floor() #boolean
+	
+	if moveRight.check() == INPUT_PRESSED:
+		if not onFloor:
+			motion.x = clamp(motion.x + ACCELERATION, -MAX_SPEED, MAX_SPEED) 
+			$Sprite.flip_h = false
+		else:
+			$Sprite.play(\"Run\")
+			motion.x = clamp(motion.x + ACCELERATION, -MAX_SPEED, MAX_SPEED) # prevents endless acceleration.
+			$Sprite.flip_h = false
+	elif moveLeft.check() == INPUT_PRESSED:
+		if not onFloor:
+			motion.x = clamp(motion.x - ACCELERATION, -MAX_SPEED, MAX_SPEED)
+		else:
+			$Sprite.play(\"Run\")
+			motion.x = clamp(motion.x - ACCELERATION, -MAX_SPEED, MAX_SPEED)
+			$Sprite.flip_h = true
+	elif moveDown.check() and onFloor:
+		#$Sprite.play(\"Duck\") future duck sprite.
+		deathFallCounter = 0
+		jumpCount = 0
+		friction = true
+	else:
+		$Sprite.play(\"Idle\")
+		deathFallCounter = 0
+		jumpCount = 0
+		friction = true
+	if  moveUp.check() == INPUT_PRESSED and onFloor:
+		jumpCount = 0
+		motion.y += JUMP_HEIGHT
+		$Sprite.play(\"Jump\")
+		deathFallCounter = 0
+	elif moveUp.check() == INPUT_JUST_PRESSED and motion.y < 0 and jumpCount < MAX_JUMPS and not onFloor: # double jump.
+		motion.y += JUMP_HEIGHT * 0.5
+		$Sprite.play(\"DoubleJump\")
+		jumpCount += 1
+		deathFallCounter = 0
+	elif not onFloor and motion.y > 0:
+		deathFallCounter += 1
+		$Sprite.play(\"Fall\")
+	if friction == true and onFloor:
+		motion.x = lerp(motion.x, 0, 0.2) #slowing down 20% every frame.
+	if friction == true and !onFloor:
+		motion.x = lerp(motion.x, 0, 0.05) #less friction while moving through air.
+
+# resets scene after player falls too much
+func fall_killer():
+	if deathFallCounter > MAX_FALL_TIME:
+		    if !is_on_floor():
+     			 get_tree().reload_current_scene()
+
+#a way to get the delta into a var
+func _fixed_process(delta):
+  myDelta = delta
+
+#main drive function. updates 60 per second.
+func _physics_process(delta):
+	motion.y += GRAVITY # basic gravity,  adds every frame.
+
+	get_input()
+	fall_killer()
+	motion = move_and_slide(motion, UP)	# making movement
+	pass
+
+"
+
+[sub_resource type="SpriteFrames" id=1]
+
+animations = [ {
+"frames": [ ExtResource( 1 ) ],
+"loop": true,
+"name": "Idle",
+"speed": 5.0
+}, {
+"frames": [ ExtResource( 2 ), ExtResource( 3 ), ExtResource( 4 ), ExtResource( 5 ), ExtResource( 6 ), ExtResource( 7 ) ],
+"loop": true,
+"name": "Run",
+"speed": 10.0
+}, {
+"frames": [ ExtResource( 8 ) ],
+"loop": true,
+"name": "Fall",
+"speed": 5.0
+}, {
+"frames": [ ExtResource( 9 ) ],
+"loop": true,
+"name": "Jump",
+"speed": 5.0
+}, {
+"frames": [ ExtResource( 10 ) ],
+"loop": true,
+"name": "DoubleJump",
+"speed": 5.0
+} ]
+
+[sub_resource type="CapsuleShape2D" id=2]
+
+custom_solver_bias = 0.0
+radius = 14.0
+height = 28.0
+
+[node name="World" type="Node" index="0"]
+
+_sections_unfolded = [ "Pause" ]
+
+[node name="Player" type="KinematicBody2D" parent="." index="0"]
+
+position = Vector2( 96, 256 )
+input_pickable = false
+collision_layer = 1
+collision_mask = 1
+collision/safe_margin = 0.001
+script = SubResource( 3 )
+_sections_unfolded = [ "Collision", "collision" ]
+
+[node name="Sprite" type="AnimatedSprite" parent="Player" index="0"]
+
+frames = SubResource( 1 )
+animation = "Idle"
+_sections_unfolded = [ "Transform" ]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" index="1"]
+
+position = Vector2( 0, 4 )
+shape = SubResource( 2 )
+_sections_unfolded = [ "Transform" ]
+
+[node name="Camera2D" type="Camera2D" parent="Player" index="2"]
+
+anchor_mode = 1
+rotating = false
+current = true
+zoom = Vector2( 0.5, 0.5 )
+limit_left = -10000000
+limit_top = -10000000
+limit_right = 10000000
+limit_bottom = 10000000
+limit_smoothed = false
+drag_margin_h_enabled = false
+drag_margin_v_enabled = false
+smoothing_enabled = false
+smoothing_speed = 5.0
+offset_v = 0.0
+offset_h = 0.0
+drag_margin_left = 0.2
+drag_margin_top = 0.2
+drag_margin_right = 0.2
+drag_margin_bottom = 0.2
+editor_draw_screen = true
+editor_draw_limits = false
+editor_draw_drag_margin = false
+
+[node name="ParallaxBackground" type="ParallaxBackground" parent="Player" index="3"]
+
+layer = -1
+offset = Vector2( 0, 0 )
+rotation = 0.0
+scale = Vector2( 1, 1 )
+transform = Transform2D( 1, 0, 0, 1, 0, 0 )
+scroll_offset = Vector2( 0, 0 )
+scroll_base_offset = Vector2( 0, 0 )
+scroll_base_scale = Vector2( 1, 1 )
+scroll_limit_begin = Vector2( 0, 0 )
+scroll_limit_end = Vector2( 0, 0 )
+scroll_ignore_camera_zoom = false
+_sections_unfolded = [ "Scroll" ]
+
+[node name="ParallaxLayer" type="ParallaxLayer" parent="Player/ParallaxBackground" index="0"]
+
+motion_scale = Vector2( 0.15, 0.15 )
+motion_offset = Vector2( 0, 0 )
+motion_mirroring = Vector2( 640, 640 )
+_sections_unfolded = [ "Motion" ]
+
+[node name="Sprite" type="Sprite" parent="Player/ParallaxBackground/ParallaxLayer" index="0"]
+
+scale = Vector2( 2.55, 2.55 )
+texture = ExtResource( 11 )
+centered = false
+_sections_unfolded = [ "Offset", "Transform" ]
+
+[node name="world2Entrance" parent="." index="1" instance=ExtResource( 12 )]
+
+position = Vector2( 96, 64 )
+nextWorld = "res://World2.tscn"
+
+[node name="world2Entrance2" parent="." index="2" instance=ExtResource( 12 )]
+
+position = Vector2( 96, 704 )
+nextWorld = "res://World2.tscn"
+
+[node name="TileMap" type="TileMap" parent="." index="3"]
+
+position = Vector2( 0, -32 )
+mode = 0
+tile_set = ExtResource( 13 )
+cell_size = Vector2( 64, 64 )
+cell_quadrant_size = 16
+cell_custom_transform = Transform2D( 1, 0, 0, 1, 0, 0 )
+cell_half_offset = 2
+cell_tile_origin = 0
+cell_y_sort = false
+cell_clip_uv = false
+collision_use_kinematic = false
+collision_friction = 1.0
+collision_bounce = 0.0
+collision_layer = 1
+collision_mask = 1
+occluder_light_mask = 1
+format = 1
+tile_data = PoolIntArray( 0, 0, 6, 1, 0, 196609, 2, 0, 196609, 3, 0, 196609, 4, 0, 196609, 5, 0, 196609, 6, 0, 196609, 7, 0, 196609, 8, 0, 10, 9, 0, 2, 65536, 0, 65541, 65544, 0, 65537, 65545, 0, 65545, 131072, 0, 65541, 131081, 0, 65541, 196608, 0, 131075, 196609, 0, 196609, 196610, 0, 196609, 196611, 0, 196609, 196612, 0, 196609, 196613, 0, 196610, 196615, 0, 196608, 196616, 0, 196609, 196617, 0, 65543, 196627, 0, 5, 262144, 0, 65541, 262163, 0, 65541, 327680, 0, 131075, 327681, 0, 196609, 327682, 0, 196609, 327683, 0, 196609, 327684, 0, 196609, 327685, 0, 196609, 327686, 0, 196609, 327687, 0, 196609, 327688, 0, 196609, 327689, 0, 196609, 327690, 0, 196609, 327691, 0, 196609, 327692, 0, 196609, 327693, 0, 196609, 327694, 0, 196609, 327695, 0, 196609, 327696, 0, 196609, 327697, 0, 7, 327699, 0, 65541, 393216, 0, 65541, 393233, 0, 65541, 393235, 0, 65541, 458752, 0, 65541, 458769, 0, 65541, 458771, 0, 65541, 524288, 0, 65541, 524305, 0, 65541, 524307, 0, 65541, 589824, 0, 65541, 589841, 0, 65541, 589843, 0, 65541, 655360, 0, 65541, 655376, 0, 196608, 655377, 0, 65543, 655379, 0, 65541, 720896, 0, 65541, 720915, 0, 65541, 786432, 0, 65542, 786433, 0, 196609, 786434, 0, 196609, 786435, 0, 196609, 786436, 0, 196609, 786437, 0, 196609, 786438, 0, 196609, 786439, 0, 196609, 786440, 0, 196609, 786441, 0, 196609, 786442, 0, 196609, 786443, 0, 196609, 786444, 0, 196609, 786445, 0, 196609, 786446, 0, 196609, 786447, 0, 196609, 786448, 0, 196609, 786449, 0, 196609, 786450, 0, 196609, 786451, 0, 65543 )
+_sections_unfolded = [ "Collision" ]
+__meta__ = {
+"_edit_lock_": true
+}
+
+
