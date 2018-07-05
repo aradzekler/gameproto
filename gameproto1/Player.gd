@@ -7,7 +7,7 @@ const ACCELERATION = 50
 const JUMP_HEIGHT = -550
 const MAX_JUMPS = 2
 const DASH_TIMER = 30
-const MAX_FALL_TIME = 50
+const MAX_FALL_TIME = 100
 
 #states for input_states.gd 
 const INPUT_RELEASED = 0
@@ -27,44 +27,44 @@ var moveUp = input_states.new("ui_select")
 var moveDown = input_states.new("ui_down")
 
 ##TODO: [] Add duck.
-##		[] Fix double jump speed
+##		[] Fix double jump 
 func get_input():
 	var friction = false
 	var onFloor = is_on_floor() #boolean
-	jumpCount = 0
 	
 	if moveRight.check() == INPUT_PRESSED:
+		$Sprite.flip_h = false
 		$Sprite.play("Run")
 		motion.x = clamp(motion.x + ACCELERATION, -MAX_SPEED, MAX_SPEED) # prevents endless acceleration.
-		$Sprite.flip_h = false
-	elif moveLeft.check() == INPUT_PRESSED:
+	if moveLeft.check() == INPUT_PRESSED:
+		$Sprite.flip_h = true
 		$Sprite.play("Run")
 		motion.x = clamp(motion.x - ACCELERATION, -MAX_SPEED, MAX_SPEED)
-		$Sprite.flip_h = true
-	elif moveDown.check() and onFloor:
+	if moveDown.check() == INPUT_PRESSED and onFloor:
 		#$Sprite.play("Duck") future duck sprite.
 		deathFallCounter = 0
 		friction = true
-	else:
+	if onFloor and moveRight.check() == INPUT_RELEASED and moveLeft.check() == INPUT_RELEASED:
 		$Sprite.play("Idle")
 		deathFallCounter = 0
+		jumpCount = 0
 		friction = true
-	if moveUp.check() and onFloor:
+	if moveUp.check() == INPUT_JUST_PRESSED and onFloor: #jump
+		deathFallCounter = 0
+		$Sprite.play("Jump")
 		motion.y += JUMP_HEIGHT
 		jumpCount += 1
-	if friction == true and onFloor:
-		motion.x = lerp(motion.x, 0, 0.2) #slowing down 20% every frame.
-	if moveUp.check() and jumpCount < MAX_JUMPS and !onFloor: # double jump.
-		motion.y += JUMP_HEIGHT * 0.5 # half of original jump height
+	if moveUp.check() == INPUT_JUST_PRESSED and jumpCount < MAX_JUMPS and !onFloor: # double jump.
+		motion.y += JUMP_HEIGHT * 0.7 
 		jumpCount += 1
-	if motion.y < 0 and jumpCount < MAX_JUMPS and !onFloor:
-		$Sprite.play("Jump")
-	elif motion.y < 0 and jumpCount == MAX_JUMPS and !onFloor:
 		$Sprite.play("DoubleJump")
-	elif !onFloor:
+	if !onFloor and motion.y > 0:
 		deathFallCounter += 1
 		$Sprite.play("Fall")
-	if friction == true and !onFloor:
+		
+	if friction == true and onFloor:
+		motion.x = lerp(motion.x, 0, 0.2) #slowing down 20% every frame.
+	elif friction == true and !onFloor:
 		motion.x = lerp(motion.x, 0, 0.05) #less friction while moving through air.
 
 # resets scene after player falls too much
